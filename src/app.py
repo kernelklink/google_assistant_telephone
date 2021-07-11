@@ -26,18 +26,18 @@ def phone_hung_up():
 
 def listen_for_hook_state_change():
     """Continuously listens for pickup/hangup of the hook"""
-    pin_number = 18
+    hook_pin = 12
     GPIO.setmode(GPIO.BOARD)
-    GPIO.setup(pin_number, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+    GPIO.setup(hook_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+    GPIO.add_event_detect( hook_pin, GPIO.BOTH )
     try:
         while True:
-            pin_current = GPIO.input(pin_number)
-            if pin_current == 1:
-                phone_picked_up()
-            else:
-                phone_hung_up()
-            while GPIO.input(pin_number) == pin_current:
-                time.sleep(0.1)
+            if( GPIO.event_detected( hook_pin ) ):
+                pin_current = GPIO.input(hook_pin)
+                if pin_current == 1:
+                    phone_picked_up()
+                else:
+                    phone_hung_up()
     except KeyboardInterrupt:
         print('Exiting...')
         GPIO.cleanup()
