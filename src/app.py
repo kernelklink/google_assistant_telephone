@@ -8,12 +8,16 @@ from google_assistant import GoogleAssistant
 assistant = GoogleAssistant()
 logging.basicConfig(level=logging.INFO)
 
+hook_status = None
 
 def phone_picked_up():
     """Called when the phone is picked up"""
     logging.info('Receiver picked up')
-    assistant.assist()
-
+    keep_going = True
+    while( keep_going == True ):
+        keep_going = assistant.assist()
+        logging.info("Assistance returned. Returned {}".format(keep_going))
+    logging.info( "Assistance complete." )            
 
 def phone_hung_up():
     """Called when the phone is hung up"""
