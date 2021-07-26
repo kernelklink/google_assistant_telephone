@@ -16,21 +16,27 @@ class PulseCollector(Thread):
         self.event = Event()
         self.digit = 0
     
-    def __run__(self):
+    def run(self):
+        logging.debug ("Not inside the while loop yet" )
         while True:
-            # Wait for a pulse
+            logging.debug( "Started, and waiting on an event" )
+
+            # Wait for first pulse
             self.event.wait()
 
+            # Wait for subsequent pulses
             while self.event.is_set():
                 self.digit += 1
                 self.event.clear()
                 self.event.wait(self.timeout)
+
+            # Output the digit to the customer
             logging.debug( "Collected a digit: {} ".format(self.digit))
             self.output_queue.put( self.digit )
             self.digit = 0
-        pass
     
     def pulse(self):
+        logging.debug("Setting the event")
         self.event.set()
 
 class ButtonHandler(Thread):
@@ -86,23 +92,22 @@ class DialMonitor(Thread):
         self.pulse_collector = PulseCollector(pulse_timeout, self.output_queue)
 
         # Created our Button Handler
-        self.button_handler = ButtonHandler(dial_pin, self.pulse_collector.pulse, edge='rising', bouncetime=10)
+        self.button_handler = ButtonHandler(dial_pin, self.collect_pulses, edge='rising', bouncetime=10)
     
-    def send_digits(self):
-        logging.debug("Sending {}".format(self.digit) )
-        self.output_queue.put( self.digit )
-        self.digit = 0
-
     def collect_pulses(self, pin):
         if( self.hook_position == "HOOK_OFF" ):
+            logging.debug("Got a pulse, sending to pulse collector.")
             self.pulse_collector.pulse()
         else:
-            logging.debug("Ignoring pulses as we're on teh hook")
+            logging.debug("Ignoring pulses as we're on the hook")
 
     
     def run(self):
         self.running = True
         GPIO.add_event_detect( self.dial_pin, GPIO.BOTH, callback=self.button_handler )
+
+        # Start the pulse collector
+        self.pulse_collector.start()
         
         # Wait for someone to kill me
         while self.running:
@@ -128,7 +133,7 @@ if __name__ == "__main__":
 
     # Run a test to see if we can monitor the hook
 
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)
 
     dial_input_queue = Queue()
     dial_output_queue = Queue()
@@ -136,11 +141,12 @@ if __name__ == "__main__":
     dial_monitor.start()
 
     dial_digits = 0
+    logging.info("Metaphorical phone will be on hook for 5 seconds...")
+    time.sleep(5)
+    logging.info("Picking phone off hook")
+    dial_input_queue.put("HOOK_OFF")
+
     while( dial_digits < 5 ):
-        logging.info("Metaphorical phone will be on hook for 10 seconds...")
-        time.sleep(10)
-        logging.info("Picking phone off hook")
-        dial_input_queue.put("HOOK_OFF")
         change = dial_output_queue.get(30)
         dial_digits += 1
         logging.info( "Digit: {}".format(change))
