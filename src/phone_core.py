@@ -2,20 +2,30 @@
 #
 # Act as a main thread for the telephone app, dispatching IPC, etc.
 
+import RPi.GPIO as GPIO
 from dial_monitor import DialMonitor
 from hook_monitor import HookMonitor
 from queue import Queue
 import logging
 
-logging.basicConfig(level=logging.DEBUG)
+log_format = "%(module)s:%(threadName)s:%(levelname)s %(message)s"
+logging.basicConfig(level=logging.DEBUG, format=log_format)
 
 def main():
+    # setup GPIO
+    hook_pin = 12
+    dial_pin = 16
+    GPIO.setmode(GPIO.BOARD)
+    GPIO.setup(dial_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+    GPIO.setup(hook_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+
+    # Setup communication queues
     my_input_queue = Queue()
     dial_queue = Queue()
     hook_queue = Queue()
 
-    dial_monitor = DialMonitor(16, dial_queue, my_input_queue)
-    hook_monitor = HookMonitor(12, hook_queue, my_input_queue)
+    dial_monitor = DialMonitor(dial_pin, dial_queue, my_input_queue)
+    hook_monitor = HookMonitor(hook_pin, hook_queue, my_input_queue)
 
     try:
         dial_monitor.start()
@@ -29,7 +39,7 @@ def main():
                 logging.debug( "Hook Up" )
                 dial_monitor.set_hook_state(False)
             else:
-                logging.debug("Digit: {}".item)
+                logging.debug("Digit: {}".format(item))
     except KeyboardInterrupt:
         dial_queue.put("KILL")
         hook_queue.put("KILL")
@@ -37,4 +47,4 @@ def main():
     hook_monitor.join()    
 
 if __name__ == "__main__":
-    pass
+    main()

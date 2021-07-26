@@ -15,12 +15,10 @@ class PulseCollector(Thread):
         self.output_queue = output_queue
         self.event = Event()
         self.digit = 0
+        self.name="PulseCollector"
     
     def run(self):
-        logging.debug ("Not inside the while loop yet" )
         while True:
-            logging.debug( "Started, and waiting on an event" )
-
             # Wait for first pulse
             self.event.wait()
 
@@ -50,6 +48,7 @@ class ButtonHandler(Thread):
         self.bouncetime = float(bouncetime)/1000
         self.lastpinval = GPIO.input(self.pin)
         self.lock = Lock()
+        self.name="ButtonHandler"
 
     def __call__(self, *args):
         if not self.lock.acquire(blocking=False):
@@ -81,6 +80,7 @@ class DialMonitor(Thread):
         self.dial_pin = dial_pin
         self.kill_timeout = kill_timeout
         self.pulse_timeout = pulse_timeout
+        self.name = "DialMonitor"
 
         # inter-thread comms
         self.input_queue = input_queue
@@ -152,7 +152,7 @@ if __name__ == "__main__":
     logging.info("Metaphorical phone will be on hook for 5 seconds...")
     time.sleep(5)
     logging.info("Picking phone off hook")
-    dial_monitor.hook_state(False)
+    dial_monitor.set_hook_state(False)
 
     # Collect 5 digits and die
     while( dial_digits < 5 ):
