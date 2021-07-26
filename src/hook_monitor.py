@@ -29,10 +29,13 @@ class HookMonitor(Thread):
         self.timeout = timeout
         self.name="HookMonitor"
     
-    def hook_change(self):
+    def hook_change(self, pin):
         if( self.running ):
-            pin_current = GPIO.input(self.hook_pin)
+            pin_current = GPIO.input(pin)
             self.output_queue.put( "OFF" if pin_current == 1 else "ON" )
+            logging.debug("Something changed on the hook, current value is {}".format(pin_current))
+        else:
+            logging.debug("Looks like I'm not running, but I'm getting interrupts")
 
     
     def run(self):
@@ -42,7 +45,7 @@ class HookMonitor(Thread):
         GPIO.add_event_detect( self.hook_pin, GPIO.BOTH, self.hook_change )
         
         # Wait for someone to kill me
-        while self.runing:
+        while self.running:
             item = self.input_queue.get()
             if( item == "KILL" ):
                 self.running = False
@@ -53,19 +56,27 @@ class HookMonitor(Thread):
             time.sleep(self.timeout)
             
         logging.info('Exiting...')
-        GPIO.cleanup()
 
 if __name__ == "__main__":
+    # Setup GPIO
+    hook_pin = 12
+    GPIO.setmode(GPIO.BOARD)
+    GPIO.setup(hook_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+
     # Run a test to see if we can monitor the hook
+
+    logging.basicConfig(level=logging.DEBUG)
 
     hook_input_queue = Queue()
     hook_output_queue = Queue()
-    hook_pin = 12
     hook_monitor = HookMonitor(hook_pin, hook_input_queue, hook_output_queue)
+    hook_monitor.start()
 
     hook_changes = 0
     while( hook_changes < 5 ):
-        change = hook_output_queue.get()
+        change = hook_output_queue.get(30)
         hook_changes += 1
         logging.info( "Hook change: {}".format(change))
     hook_input_queue.put("KILL")
+    hook_monitor.join()
+    GPIO.cleanup()
