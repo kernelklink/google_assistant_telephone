@@ -4,9 +4,34 @@
 
 import RPi.GPIO as GPIO
 from queue import Queue
-from threading import Thread, Lock, Timer
+from threading import Thread, Lock, Timer, Event
 import logging
 import time
+
+class PulseCollector(Thread):
+    def __init__(self, timeout, output_queue):
+        super().__init__(daemon=True)
+        self.timeout = timeout
+        self.output_queue = output_queue
+        self.event = Event()
+        self.digit = 0
+    
+    def __run__(self):
+        while True:
+            # Wait for a pulse
+            self.event.wait()
+
+            while self.event.is_set():
+                self.digit += 1
+                self.event.clear()
+                self.event.wait(self.timeout)
+            logging.debug( "Collected a digit: {} ".format(self.digit))
+            self.output_queue.put( self.digit )
+            self.digit = 0
+        pass
+    
+    def pulse(self):
+        self.event.set()
 
 class ButtonHandler(Thread):
     def __init__(self, pin, func, edge='both', bouncetime=10):
@@ -44,20 +69,24 @@ class DialMonitor(Thread):
     def __init__(self, dial_pin, input_queue, output_queue, hook_position="HOOK_OFF", kill_timeout=5, pulse_timeout=0.15) -> None:
         super().__init__()
 
-        # Set some state
-        self.digit = 0
+        # Config items
         self.dial_pin = dial_pin
-        self.input_queue = input_queue
-        self.output_queue = output_queue
-        self.hook_position = hook_position
         self.kill_timeout = kill_timeout
         self.pulse_timeout = pulse_timeout
 
-        # Create our timer, but don't start it
-        self.pulse_timer = Timer(self.pulse_timeout, self.send_digits)
+        # inter-thread comms
+        self.input_queue = input_queue
+        self.output_queue = output_queue
+
+        # initialize State
+        self.digit = 0
+        self.hook_position = hook_position
+
+        # Create our pulse collector
+        self.pulse_collector = PulseCollector(pulse_timeout, self.output_queue)
 
         # Created our Button Handler
-        self.button_handler = ButtonHandler(dial_pin, self.collect_pulses, edge='rising', bouncetime=10)
+        self.button_handler = ButtonHandler(dial_pin, self.pulse_collector.pulse, edge='rising', bouncetime=10)
     
     def send_digits(self):
         logging.debug("Sending {}".format(self.digit) )
@@ -66,11 +95,7 @@ class DialMonitor(Thread):
 
     def collect_pulses(self, pin):
         if( self.hook_position == "HOOK_OFF" ):
-            if( self.digit != 0 ):
-                self.pulse_timer.cancel()
-                self.pulse_timer = Timer(self.pulse_timeout, self.send_digits)
-            self.digit += 1
-            self.pulse_timer.start()
+            self.pulse_collector.pulse()
         else:
             logging.debug("Ignoring pulses as we're on teh hook")
 
@@ -91,7 +116,8 @@ class DialMonitor(Thread):
                 self.hook_position = "HOOK_OFF"
             else:
                 logging.info("Received an unknown message from input_queue: '{}'".format(item))
-            
+        
+        self.pulse_collector.join()
         logging.info('Exiting...')
 
 if __name__ == "__main__":
