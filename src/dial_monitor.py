@@ -74,7 +74,7 @@ class DialMonitor(Thread):
     """A class to monitor the phone dial and report back new digits as they arrive
     """
 
-    def __init__(self, dial_pin, input_queue, output_queue, hook_position="HOOK_OFF", kill_timeout=5, pulse_timeout=0.15) -> None:
+    def __init__(self, dial_pin, input_queue, output_queue, kill_timeout=5, pulse_timeout=0.15) -> None:
         super().__init__()
 
         # Config items
@@ -85,10 +85,10 @@ class DialMonitor(Thread):
         # inter-thread comms
         self.input_queue = input_queue
         self.output_queue = output_queue
+        self.hook_state = Event()
 
         # initialize State
         self.digit = 0
-        self.hook_position = hook_position
 
         # Create our pulse collector
         self.pulse_collector = PulseCollector(pulse_timeout, self.output_queue)
@@ -102,12 +102,17 @@ class DialMonitor(Thread):
         Args:
             pin (int): the GPIO pin that generated the pulse
         """
-        if( self.hook_position == "HOOK_OFF" ):
+        if( not self.hook_state.is_set() ):
             logging.debug("Got a pulse, sending to pulse collector.")
             self.pulse_collector.pulse()
         else:
             logging.debug("Ignoring pulses as we're on the hook")
-
+    
+    def set_hook_state(self, state):
+        if( state ):
+            self.hook_state.set()
+        else:
+            self.hook_state.clear()
     
     def run(self):
         self.running = True
@@ -122,10 +127,6 @@ class DialMonitor(Thread):
             logging.debug("Received message {}".format(item))
             if( item == "KILL" ):
                 self.running = False
-            elif( item == "HOOK_ON" ):
-                self.hook_position = "HOOK_ON"
-            elif( item == "HOOK_OFF" ):
-                self.hook_position = "HOOK_OFF"
             else:
                 logging.info("Received an unknown message from input_queue: '{}'".format(item))
         
@@ -151,12 +152,13 @@ if __name__ == "__main__":
     logging.info("Metaphorical phone will be on hook for 5 seconds...")
     time.sleep(5)
     logging.info("Picking phone off hook")
-    dial_input_queue.put("HOOK_OFF")
+    dial_monitor.hook_state(False)
 
+    # Collect 5 digits and die
     while( dial_digits < 5 ):
         change = dial_output_queue.get(30)
         dial_digits += 1
         logging.info( "Digit: {}".format(change))
-    dial_input_queue.put("KILL")
+    # dial_input_queue.put("KILL")
     dial_monitor.join()
     GPIO.cleanup()
