@@ -7,9 +7,21 @@ from dial_monitor import DialMonitor
 from hook_monitor import HookMonitor
 from queue import Queue
 import logging
+from google_assistant import GoogleAssistant
 
 log_format = "%(module)s:%(threadName)s:%(levelname)s %(message)s"
 logging.basicConfig(level=logging.DEBUG, format=log_format)
+assistant = GoogleAssistant()
+
+def get_assistance():
+    """Reach out to GoogleAssistant for assistance
+    """
+    logging.info('Begin Assistance')
+    keep_going = True
+    while( keep_going == True ):
+        keep_going = assistant.assist()
+        logging.info("Assistance returned. Returned {}".format(keep_going))
+    logging.info( "Assistance complete." )
 
 def main():
     # setup GPIO
@@ -38,6 +50,8 @@ def main():
             elif( item == "HOOK_OFF" ):
                 logging.debug( "Hook Up" )
                 dial_monitor.set_hook_state(False)
+            elif( item == 0 ):
+                get_assistance()
             else:
                 logging.debug("Digit: {}".format(item))
     except KeyboardInterrupt:
