@@ -68,6 +68,7 @@ class DialMonitor(Thread):
         if( self.hook_position == "HOOK_OFF" ):
             if( self.digit != 0 ):
                 self.pulse_timer.cancel()
+                self.pulse_timer = Timer(self.pulse_timeout, self.send_digits)
             self.digit += 1
             self.pulse_timer.start()
         else:
@@ -76,11 +77,12 @@ class DialMonitor(Thread):
     
     def run(self):
         self.running = True
-        GPIO.add_event_detect( self.dial_pin, GPIO.BOTH, self.hook_change )
+        GPIO.add_event_detect( self.dial_pin, GPIO.BOTH, callback=self.button_handler )
         
         # Wait for someone to kill me
         while self.running:
             item = self.input_queue.get()
+            logging.debug("Received message {}".format(item))
             if( item == "KILL" ):
                 self.running = False
             elif( item == "HOOK_ON" ):
@@ -109,13 +111,13 @@ if __name__ == "__main__":
 
     dial_digits = 0
     while( dial_digits < 5 ):
+        logging.info("Metaphorical phone will be on hook for 10 seconds...")
+        time.sleep(10)
+        logging.info("Picking phone off hook")
+        dial_input_queue.put("HOOK_OFF")
         change = dial_output_queue.get(30)
         dial_digits += 1
-        logging.info( "Hook change: {}".format(change))
-    while( dial_digits < 5 ):
-        change = dial_output_queue.get(30)
-        dial_digits += 1
-        logging.info( "Hook change: {}".format(change))
+        logging.info( "Digit: {}".format(change))
     dial_input_queue.put("KILL")
     dial_monitor.join()
     GPIO.cleanup()
