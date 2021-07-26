@@ -30,9 +30,14 @@ class HookMonitor(Thread):
         self.name="HookMonitor"
     
     def hook_change(self, pin):
+        """Monitor the hook for changes, when it changes report that through the output queue
+
+        Args:
+            pin (int): GPIO pin associated with this change in current
+        """
         if( self.running ):
             pin_current = GPIO.input(pin)
-            self.output_queue.put( "OFF" if pin_current == 1 else "ON" )
+            self.output_queue.put( "HOOK_OFF" if pin_current == 1 else "HOOK_ON" )
             logging.debug("Something changed on the hook, current value is {}".format(pin_current))
         else:
             logging.debug("Looks like I'm not running, but I'm getting interrupts")

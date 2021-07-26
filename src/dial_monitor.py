@@ -40,6 +40,8 @@ class PulseCollector(Thread):
         self.event.set()
 
 class ButtonHandler(Thread):
+    """Class to act as a software debouncer for the rotary dial.
+    """
     def __init__(self, pin, func, edge='both', bouncetime=10):
         super().__init__(daemon=True)
         self.edge = edge
@@ -95,6 +97,11 @@ class DialMonitor(Thread):
         self.button_handler = ButtonHandler(dial_pin, self.collect_pulses, edge='rising', bouncetime=10)
     
     def collect_pulses(self, pin):
+        """Check ths hook position before forwarding off to the pulse collector
+
+        Args:
+            pin (int): the GPIO pin that generated the pulse
+        """
         if( self.hook_position == "HOOK_OFF" ):
             logging.debug("Got a pulse, sending to pulse collector.")
             self.pulse_collector.pulse()
