@@ -25,6 +25,7 @@ class PulseCollector(Thread):
             # Wait for subsequent pulses
             while self.event.is_set():
                 self.digit += 1
+                self.digit %= 10
                 self.event.clear()
                 self.event.wait(self.timeout)
 
